@@ -1,19 +1,19 @@
 # UK Online Retail Analytics Platform in Microsoft Fabric
 
-An end-to-end data engineering and analytics project built with **Microsoft Fabric**, following a **Bronze → Silver → Gold medallion architecture**, with pipeline orchestration, monitoring, Direct Lake semantic modelling, and Power BI reporting.
+An end-to-end data engineering and analytics project built with **Microsoft Fabric**, following a **Bronze → Silver → Gold medallion architecture**.
 
-The project transforms raw UK online retail transaction data into clean, business-ready datasets for analysing sales, products, customers, cancellations, and geographic performance.
+The project transforms raw UK online retail transaction data into cleaned, validated, business-ready datasets, then delivers insights through an automated Fabric pipeline and Power BI dashboard.
 
 ---
 
 ## Project Overview
 
-This project demonstrates a complete Microsoft Fabric analytics workflow:
+This project was built to demonstrate a complete modern analytics workflow in Microsoft Fabric:
 
 ```text
 Online Retail.xlsx
         ↓
-OneLake Files/raw
+OneLake / Lakehouse
         ↓
 Bronze Layer
 bronze.raw_sales
@@ -32,49 +32,52 @@ Direct Lake Semantic Model
 Power BI Dashboard
 ```
 
-The solution includes:
+The solution covers:
 
 - Raw data ingestion
-- Data validation and cleaning
+- Data profiling and validation
+- Data cleaning and standardisation
 - Transaction classification
-- Duplicate removal
-- Business-ready aggregations
-- Automated pipeline orchestration
+- Duplicate detection and removal
+- Business-level aggregations
+- Pipeline orchestration
 - Retry and failure handling
-- Monitoring
 - Scheduled execution
+- Pipeline monitoring
 - Direct Lake semantic modelling
 - Power BI reporting
 
 ---
 
-## Dataset
+# Dataset
 
 The project uses the **UCI Online Retail dataset**, containing transaction records from a UK-based online retailer.
 
-Initial dataset profile:
+### Initial dataset profile
 
-- **541,909 rows**
-- **8 source columns**
-- Approx. **25,900 invoices**
-- Approx. **4,070 stock codes**
-- Approx. **4,372 identified customers**
-- **38 countries**
-- Date range: **1 December 2010 to 9 December 2011**
+| Metric | Value |
+|---|---:|
+| Rows | 541,909 |
+| Source columns | 8 |
+| Approx. invoices | 25,900 |
+| Approx. stock codes | 4,070 |
+| Identified customers | 4,372 |
+| Countries | 38 |
+| Date range | Dec 2010 – Dec 2011 |
 
-Initial data quality findings included:
+### Data quality issues identified
 
 - 135,080 missing Customer IDs
 - 1,454 missing descriptions
 - 5,268 exact duplicate rows
-- 9,288 cancellation transactions
+- 9,288 cancellation invoices
 - 10,624 negative quantity rows
 - 2,515 zero-price rows
 - 2 negative-price rows
 
 ---
 
-## Technology Stack
+# Technology Stack
 
 - Microsoft Fabric
 - Fabric Lakehouse
@@ -92,120 +95,125 @@ Initial data quality findings included:
 
 ---
 
-# Bronze Layer
+# Medallion Architecture
 
-The Bronze layer preserves the raw source data with minimal transformation.
+## Bronze Layer
 
-The original Excel file is stored in:
+The Bronze layer preserves the source data with minimal transformation.
+
+Source file:
 
 ```text
 Files/raw/Online Retail.xlsx
 ```
 
-It is ingested into:
+Target table:
 
 ```text
 bronze.raw_sales
 ```
 
-Two lineage columns are added:
+Two lineage fields are added:
 
 - `SourceFile`
 - `IngestedAt`
 
-No business filtering or analytical transformation is applied at this stage.
+No business-level filtering is applied in Bronze.
 
-### Bronze output
+### Bronze result
 
-- **541,909 rows**
-- 8 original source columns
-- 2 lineage columns
+```text
+Rows: 541,909
+Columns: 10
+```
 
 ---
 
-# Silver Layer
+## Silver Layer
 
-The Silver layer performs the main data-quality and transformation work.
+The Silver layer contains the main data-cleaning and validation logic.
 
-Final table:
+Target table:
 
 ```text
 silver.sales_transactions
 ```
 
-Key transformations include:
+### Transformations performed
 
-- Datatype enforcement
-- Text trimming
-- Customer ID standardisation
-- Country-name standardisation
-- Transaction classification
-- Data-quality flags
-- Line amount calculation
-- Deterministic transaction hashing
-- Exact duplicate removal
+- Enforced appropriate datatypes
+- Trimmed text values
+- Standardised CustomerID
+- Standardised country values
+- Created data-quality flags
+- Classified transaction types
+- Calculated line-level revenue
+- Generated deterministic transaction IDs
+- Removed exact duplicates
 
 ---
 
-## Data Quality Decisions
+## Data Quality Strategy
 
-The project avoids automatically deleting unusual records where they may still contain useful business information.
+One of the main design decisions in this project was **not to automatically delete unusual records**.
+
+Instead, records were preserved where they could still provide business value.
 
 ### Missing Customer IDs
 
-Rows with missing Customer IDs are retained because they can still contribute to:
+Rows with missing Customer IDs were retained because they still contribute to:
 
-- Overall sales analysis
-- Product performance
-- Country analysis
-- Transaction volumes
+- total sales
+- product analysis
+- country analysis
+- transaction volumes
 
 They are excluded only from customer-level analysis.
 
 ### Cancellations
 
-Invoices beginning with `C` are classified as:
+Invoices beginning with `C` were classified as:
 
 ```text
 Cancellation
 ```
 
-They are retained so cancellation behaviour and net revenue can be analysed.
+They were retained so cancellation behaviour and net revenue could be analysed.
 
-### Negative Quantities
+### Negative quantities
 
-Negative quantities without a cancellation invoice prefix are retained and flagged for review rather than deleted automatically.
+Negative quantities without a cancellation invoice prefix were retained and flagged for review.
 
-### Zero-Price Transactions
+### Zero-price transactions
 
-Zero-price rows are retained because they may represent:
+Zero-price records were kept because they may represent:
 
-- Free items
-- Stock movements
-- Adjustments
-- Data-quality issues
+- free items
+- stock movements
+- operational adjustments
+- data-quality issues
 
-### Negative Prices
+### Negative prices
 
-Rows with description:
+Records with the description:
 
 ```text
 Adjust bad debt
 ```
 
-are classified as accounting adjustments.
+were classified as accounting adjustments.
 
-Unexpected negative-price rows that are not known accounting adjustments are flagged for review.
+Unexpected negative prices were flagged for investigation.
 
-### Missing Descriptions
+### Missing descriptions
 
-Rows with missing descriptions are retained because the StockCode may still identify the item.
+Rows with missing descriptions were retained because the StockCode may still identify the item.
 
 ---
 
-## Transaction Classification
+# Transaction Classification
 
-Transactions are assigned one of four transaction types using this priority:
+Transactions were classified using the following priority:
 
 ```text
 1. Cancellation
@@ -214,11 +222,9 @@ Transactions are assigned one of four transaction types using this priority:
 4. Sale
 ```
 
-This avoids overlapping conditions creating inconsistent classifications.
+This prevents records that meet multiple conditions from being inconsistently classified.
 
----
-
-## Data Quality Flags
+### Data-quality flags
 
 The Silver table includes:
 
@@ -231,30 +237,28 @@ IsNegativePrice
 RequiresReview
 ```
 
-These fields allow downstream analysis to apply business-specific filtering rules.
-
 ---
 
-## Transaction ID and Deduplication
+# Deduplication
 
-A deterministic SHA-256 row-content hash is created using:
+A deterministic SHA-256 row-content hash was generated using:
 
-- InvoiceNo
-- StockCode
-- Description
-- Quantity
-- InvoiceDate
-- UnitPrice
-- CustomerID
-- Country
+```text
+InvoiceNo
+StockCode
+Description
+Quantity
+InvoiceDate
+UnitPrice
+CustomerID
+Country
+```
 
-The result is stored as:
+The generated field is:
 
 ```text
 TransactionID
 ```
-
-Using all eight business fields aligned the deduplication result with the original profiling.
 
 ### Deduplication result
 
@@ -264,15 +268,13 @@ Duplicates removed:   5,268
 Final Silver rows:   536,641
 ```
 
-Final validation confirmed:
+Validation confirmed:
 
 ```text
 Duplicate TransactionIDs: 0
 ```
 
----
-
-## Final Silver Transaction Types
+### Final transaction types
 
 | Transaction Type | Rows |
 |---|---:|
@@ -285,23 +287,15 @@ Duplicate TransactionIDs: 0
 
 # Gold Layer
 
-The Gold layer contains business-ready datasets designed for reporting and analytics.
-
----
+Four business-ready Gold tables were created.
 
 ## 1. Daily Sales
-
-Table:
 
 ```text
 gold.daily_sales
 ```
 
-Purpose:
-
-Analyse successful daily sales performance.
-
-Only transactions classified as `Sale` are included.
+Used to analyse successful daily sales.
 
 Metrics include:
 
@@ -311,30 +305,17 @@ Metrics include:
 - LineItemCount
 - CustomerCount
 
-Example result:
-
-```text
-Date: 2010-12-01
-Revenue: £58,776.79
-Quantity: 26,906
-Orders: 136
-Line items: 3,037
-Customers: 96
-```
+Only `Sale` transactions are included.
 
 ---
 
 ## 2. Product Performance
 
-Table:
-
 ```text
 gold.product_performance
 ```
 
-Purpose:
-
-Measure product performance while accounting for cancellations.
+Used to analyse product performance while accounting for cancellations.
 
 Metrics include:
 
@@ -347,11 +328,9 @@ Metrics include:
 - OrderCount
 - CustomerCount
 
-Both `Sale` and `Cancellation` transactions are used.
-
 A canonical product description is selected using the most recent non-null description for each StockCode.
 
-Validation:
+### Validation
 
 ```text
 Product rows: 3,956
@@ -362,17 +341,11 @@ Duplicate StockCodes: 0
 
 ## 3. Customer Summary
 
-Table:
-
 ```text
 gold.customer_summary
 ```
 
-Purpose:
-
-Provide one record per identifiable customer.
-
-Rows without CustomerID are excluded because customer-level analysis requires a known customer.
+Provides one record per identified customer.
 
 Metrics include:
 
@@ -387,25 +360,17 @@ Metrics include:
 - AverageOrderValue
 - NetAverageOrderValue
 
-Validation confirmed:
-
-```text
-Duplicate Customer IDs: 0
-```
+Customers without CustomerID are excluded from this table.
 
 ---
 
 ## 4. Country Sales
 
-Table:
-
 ```text
 gold.country_sales
 ```
 
-Purpose:
-
-Analyse successful sales performance by country.
+Used to analyse successful sales performance by country.
 
 Metrics include:
 
@@ -415,7 +380,7 @@ Metrics include:
 - CustomerCount
 - AverageOrderValue
 
-Country values were standardised upstream in the Silver layer.
+Country names were standardised upstream.
 
 Examples:
 
@@ -424,7 +389,7 @@ EIRE → Ireland
 RSA → South Africa
 ```
 
-Final country table:
+Final output:
 
 ```text
 37 countries
@@ -434,7 +399,7 @@ Final country table:
 
 # Pipeline Orchestration
 
-The full workflow is orchestrated using:
+The end-to-end workflow is orchestrated using:
 
 ```text
 RetailSales_ETL_Pipeline
@@ -450,9 +415,9 @@ Silver_Transformations
 Gold_Business_Tables
 ```
 
-Each activity is connected using **On Success** dependencies.
+Each stage uses an **On Success** dependency.
 
-If an upstream activity fails, downstream transformation does not continue.
+If an upstream notebook fails, downstream processing stops.
 
 ---
 
@@ -462,17 +427,17 @@ Each notebook activity is configured with:
 
 ```text
 Retries: 1
-Minimum delay: 90 seconds
-Maximum delay: 150 seconds
+Minimum retry delay: 90 seconds
+Maximum retry delay: 150 seconds
 ```
 
-This provides resilience against temporary Spark or capacity issues without repeatedly retrying genuine data or code failures.
+This helps recover from temporary Spark or capacity issues without repeatedly retrying genuine code or data failures.
 
 ---
 
 ## Failure Notifications
 
-Failure-notification activities were added for each stage:
+Failure branches were added for each pipeline stage:
 
 ```text
 Notify_Bronze_Failure
@@ -480,42 +445,23 @@ Notify_Silver_Failure
 Notify_Gold_Failure
 ```
 
-Notifications include:
-
-- Failed activity
-- Pipeline run ID
-- Information about downstream processing that did not execute
+Notifications include the failed stage and pipeline run information.
 
 ---
 
-# Monitoring
+# Pipeline Monitoring
 
-Microsoft Fabric Monitoring Hub is used to monitor pipeline execution.
-
-A complete end-to-end run successfully executed all three transformation stages.
+Fabric Monitoring Hub was used to validate successful end-to-end execution.
 
 ### Successful run
 
-```text
-Bronze Ingestion:         1m 59s
-Silver Transformations:  1m 51s
-Gold Business Tables:    1m 22s
-```
+| Activity | Status | Duration |
+|---|---|---:|
+| Bronze Ingestion | Succeeded | 1m 59s |
+| Silver Transformations | Succeeded | 1m 51s |
+| Gold Business Tables | Succeeded | 1m 22s |
 
-The Monitoring Hub provides:
-
-- Pipeline status
-- Activity status
-- Duration
-- Run identifiers
-- Activity outputs
-- Troubleshooting information
-
----
-
-## Fabric Pipeline Monitoring
-
-![Fabric Pipeline Monitoring](pipeline_monitoring.png)
+![Fabric Pipeline Monitoring](screenshots/pipeline_monitoring.png)
 
 ---
 
@@ -529,9 +475,9 @@ Time: 05:30
 Time zone: Europe/London
 ```
 
-The schedule represents a production-style workflow where transformations run after expected source-data arrival.
+The schedule represents a production-style workflow where processing begins after expected source-data arrival.
 
-Because the project uses a small F2 Fabric capacity, the capacity can be paused outside development and execution periods to reduce cloud cost.
+The project uses an F2 Fabric capacity, which can be paused outside active development or execution periods to control cloud costs.
 
 ---
 
@@ -543,7 +489,7 @@ A Direct Lake semantic model was created:
 RetailSalesAnalyticsModel
 ```
 
-It uses the Gold tables:
+It uses the following Gold tables:
 
 ```text
 country_sales
@@ -552,7 +498,7 @@ daily_sales
 product_performance
 ```
 
-The Gold tables intentionally use different analytical grains and are not directly joined together.
+The Gold tables are intentionally maintained at different analytical grains.
 
 ---
 
@@ -602,13 +548,13 @@ DIVIDE(
 
 # Power BI Dashboard
 
-The final report is named:
+The final report is:
 
 ```text
 UK Online Retail Sales Analytics
 ```
 
-Dashboard KPIs include:
+### KPI cards
 
 - Total Sales Revenue
 - Total Orders
@@ -617,7 +563,7 @@ Dashboard KPIs include:
 - Cancellation Value
 - Average Order Value
 
-Visuals include:
+### Visuals
 
 - Daily Sales Revenue Trend
 - Top 10 Customers by Net Revenue
@@ -625,108 +571,124 @@ Visuals include:
 - Top 10 Countries by Sales Revenue
 - Gross Revenue vs Cancellation Value
 
----
+### Final dashboard results
 
-## Key Results
+| KPI | Result |
+|---|---:|
+| Total Sales Revenue | £10.63M |
+| Total Orders | 21K |
+| Total Customers | 4K |
+| Net Revenue | £9.73M |
+| Cancellation Value | £893.98K |
+| Average Order Value | £513.05 |
 
-Final dashboard metrics include approximately:
-
-```text
-Total Sales Revenue: £10.63M
-Total Orders: 21K
-Total Customers: 4K
-Net Revenue: £9.73M
-Cancellation Value: £893.98K
-Average Order Value: £513.05
-```
-
-The analysis also shows that the United Kingdom accounts for the majority of transaction activity, while a relatively small number of products and customers contribute a significant share of revenue.
+![Power BI Dashboard](screenshots/powerbi_dashboard.png)
 
 ---
 
-## Power BI Dashboard
+# Key Insights
 
-![Power BI Dashboard](powerbi_dashboard.png)
+The analysis highlighted several important patterns:
+
+- The **United Kingdom dominates overall sales activity**.
+- A relatively small number of products contribute a large share of product revenue.
+- A relatively small number of customers contribute significantly to total net revenue.
+- Cancellation activity has a noticeable impact on gross revenue.
+- Daily revenue shows significant variation across the period, with larger spikes toward the end of the dataset.
 
 ---
 
 # Key Engineering Decisions
 
-Important design decisions in this project include:
+Important decisions made during the project include:
 
-- Preserving missing-customer transactions for non-customer analytics
-- Retaining cancellations rather than deleting them
-- Separating gross and net revenue analysis
+- Retaining transactions with missing Customer IDs for non-customer analysis
+- Preserving cancellation records instead of deleting them
+- Separating gross and net revenue
 - Flagging uncertain records rather than automatically removing them
-- Distinguishing accounting adjustments from standard sales
-- Using a deterministic row-content hash for deduplication
-- Applying business-specific filters in the Gold layer
-- Standardising inconsistent country names upstream
-- Keeping analytical tables separated by grain
-
----
-
-# What I Learned
-
-This project strengthened my understanding of:
-
-- Microsoft Fabric architecture
-- Medallion architecture
-- Lakehouse design
-- PySpark transformation workflows
-- Delta tables
-- Data-quality management
-- Deduplication strategies
-- Business-rule design
-- Fabric pipeline orchestration
-- Retry and failure handling
-- Monitoring
-- Direct Lake semantic models
-- DAX
-- Power BI reporting
-- Cloud capacity and cost management
-
-One of the main lessons from this project was that data cleaning should not simply mean removing unusual records. Many apparent anomalies can contain meaningful business information, so transformation rules should reflect the purpose of downstream analysis.
+- Distinguishing accounting adjustments from normal sales
+- Using SHA-256 row-content hashing for deterministic deduplication
+- Applying business-specific filtering in Gold tables
+- Standardising country values in the Silver layer
+- Keeping Gold tables separated by analytical grain
 
 ---
 
 # Repository Structure
 
-Current repository structure:
-
 ```text
 uk-online-retail-fabric/
-├── powerbi_dashboard.png
-├── pipeline_monitoring.png
+│
+├── notebooks/
+│   ├── 01_bronze_ingestion.ipynb
+│   ├── 02_silver_transformations.ipynb
+│   └── 03_gold_business_tables.ipynb
+│
+├── screenshots/
+│   ├── pipeline_monitoring.png
+│   └── powerbi_dashboard.png
+│
 └── README.md
 ```
 
-Planned addition:
+---
 
-```text
-notebooks/
-├── 01_bronze_ingestion.ipynb
-├── 02_silver_transformations.ipynb
-└── 03_gold_business_tables.ipynb
-```
+# Notebooks
 
-The notebooks will be exported directly from Microsoft Fabric and added to the repository.
+The implementation is available in the `notebooks` folder:
+
+### Bronze ingestion
+
+[`01_bronze_ingestion.ipynb`](notebooks/01_bronze_ingestion.ipynb)
+
+### Silver transformations
+
+[`02_silver_transformations.ipynb`](notebooks/02_silver_transformations.ipynb)
+
+### Gold business tables
+
+[`03_gold_business_tables.ipynb`](notebooks/03_gold_business_tables.ipynb)
+
+---
+
+# What I Learned
+
+This project strengthened my practical understanding of:
+
+- Microsoft Fabric architecture
+- Medallion architecture
+- Lakehouse design
+- PySpark transformations
+- Delta tables
+- Data-quality management
+- Deduplication strategies
+- Business-rule design
+- Pipeline orchestration
+- Retry and failure handling
+- Fabric Monitoring Hub
+- Direct Lake semantic modelling
+- DAX
+- Power BI dashboard development
+- Cloud capacity and cost management
+
+A key lesson from this project was that **data cleaning does not always mean deleting unusual records**. Many anomalies can contain useful business information, so data-quality decisions should depend on the purpose of the downstream analysis.
 
 ---
 
 # Future Improvements
 
-Potential future improvements include:
+Future enhancements could include:
 
-- Creating reusable date, product, customer, and country dimensions
-- Implementing a star schema
-- Separating postage and service charges from physical-product rankings
-- Adding data-quality monitoring tables
+- Adding reusable date, customer, product, and country dimensions
+- Implementing a full star schema
+- Separating service charges such as postage from physical product rankings
 - Adding incremental ingestion
+- Adding automated source-file detection
+- Adding data-quality monitoring tables
 - Parameterising pipelines
-- Automating source-file detection
-- Adding historical pipeline-performance monitoring
-- Expanding Power BI analysis with cancellation rate and customer segmentation
+- Adding historical pipeline performance reporting
+- Adding customer segmentation
+- Adding cancellation-rate analysis
 
 ---
 
@@ -736,4 +698,10 @@ Potential future improvements include:
 
 MSc Data Science & Artificial Intelligence
 
-Interests: Data Engineering, Data Science, Machine Learning, Analytics, AI
+Interested in:
+
+- Data Engineering
+- Data Science
+- Machine Learning
+- Analytics
+- Artificial Intelligence
