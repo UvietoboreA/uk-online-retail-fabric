@@ -694,7 +694,7 @@ Future enhancements could include:
 
 ## Author
 
-**Uvietobore Adjugah**
+**Uvietobore Joshua Adjugah**
 
 MSc Data Science & Artificial Intelligence
 
